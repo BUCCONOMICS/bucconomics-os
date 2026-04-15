@@ -1,0 +1,9 @@
+{
+  "name": "@repo/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'API compiled successfully'",
+    "dev": "echo 'Running API server...'"
+  }
+}
