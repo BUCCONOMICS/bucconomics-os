@@ -23,7 +23,7 @@
   ## 3. Smart Contract Standards
 
 * **Development Framework:** **Foundry** will be the primary toolchain for compiling, deploying, and testing smart contracts. Its Rust-based architecture ensures rapid build times, and writing tests in Solidity provides better alignment with the core logic.
-* **Solidity Versioning:** A **floating pragma** (e.g., `pragma solidity ^0.8.0;`) is permitted and encouraged to ensure seamless integration and compilation with forked, pre-audited protocols (such as the Goldfinch tranche logic).
+* **Solidity Versioning:** A **floating pragma** (e.g., `pragma solidity ^0.8.0;`) is permitted and encouraged to ensure seamless integration and compilation with forked, pre-audited protocols (such as the forked tranche logic).
 * **Security & Dependencies:**
   * **OpenZeppelin:** All standard token implementations (ERC-20, ERC-721/SBT) and access control mechanisms must inherit from the latest secure OpenZeppelin library releases.
   * **Testing:** All pull requests involving smart contracts must include Foundry test coverage (`forge test`) covering positive, negative, and edge-case scenarios. 
