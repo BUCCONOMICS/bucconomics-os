@@ -6,7 +6,7 @@ The investor flow is designed to feel like a seamless Web2 fintech app, masking 
 
 1. **The Landing Page:** The user signs up via standard email/password or social login.
 2. **The Suitability Quiz:** The user must pass the Restricted Investor Quiz (Ticket 1). This ensures they understand the risks of DeFi and structured credit.
-3. **KYC Verification:** The user submits their ID documents through the `IFiatProvider` UI (e.g., Transak).
+3. **KYC Verification:** The user submits their ID documents through the `IFiatProvider` UI.
 4. **Behind the Scenes (API):** The provider sends a `KYC_PASSED` webhook to our API (Ticket 8). The Private Intelligence Gateway calculates their Risk Band and triggers a 24-hour regulatory "Cooling Off" timer.
 
 **Phase 2: Wallet Creation & Identity**
