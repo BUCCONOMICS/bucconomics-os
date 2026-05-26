@@ -1,9 +1,12 @@
 "use client";
 
-import { SuitabilityQuiz } from "../../src/components/compliance/SuitabilityQuiz";
+import {
+  SuitabilityQuiz,
+  type Answers,
+} from "../../src/components/compliance/SuitabilityQuiz";
 
 export default function CompliancePage() {
-  const handleQuizSubmit = (answers: any) => {
+  const handleQuizSubmit = (answers: Answers) => {
     console.log("Quiz completed:", answers);
   };
 

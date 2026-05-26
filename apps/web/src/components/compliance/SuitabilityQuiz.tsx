@@ -12,7 +12,7 @@ interface Question {
   }[];
 }
 
-interface Answers {
+export interface Answers {
   [key: number]: {
     value: string;
     riskLevel: number;
