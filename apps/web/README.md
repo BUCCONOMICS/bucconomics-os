@@ -41,3 +41,14 @@ cooling-off lifecycle in `apps/api`.
   (`contracts/script/MintUid.s.sol`). The API needs `BUCC_UID_ADDRESS`,
   `MINT_OWNER_KEY` (and a running chain, e.g. anvil on `:8545`) for the mint
   to succeed.
+
+## Voting
+
+Proposal pages under `/proposals` use the API's proposal/vote endpoints:
+
+- `/proposals` — list proposals for a BUCC and open a proposal detail page.
+- `/proposals/:id` — proposal body, quadratic tally (`GET
+/proposals/:id/tally`), per-voter votes, and a vote form. Connecting a
+  wallet loads the voter's credit budget (`GET /votes?voter_uid=`); a weight
+  of `w` costs `w²` credits (quadratic). The submit button is gated on a
+  non-negative integer weight and a budget that still fits.

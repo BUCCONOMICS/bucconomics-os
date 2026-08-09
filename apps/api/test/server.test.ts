@@ -401,6 +401,74 @@ describe("proposal/vote API", () => {
       expect(response.statusCode).toBe(201);
     }
   });
+
+  it("reports a voter's budget and remaining credits", async () => {
+    const proposalA = (
+      await app.inject({
+        method: "POST",
+        url: "/proposals",
+        payload: validProposal,
+      })
+    ).json();
+    const proposalB = (
+      await app.inject({
+        method: "POST",
+        url: "/proposals",
+        payload: validProposal,
+      })
+    ).json();
+
+    await app.inject({
+      method: "POST",
+      url: "/votes",
+      payload: {
+        target_id: proposalA.proposal_id,
+        voter_uid: "uid-spent",
+        vote_weight: "6",
+        origin_bucc_id: buccId,
+      },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/votes",
+      payload: {
+        target_id: proposalB.proposal_id,
+        voter_uid: "uid-spent",
+        vote_weight: "8",
+        origin_bucc_id: buccId,
+      },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/votes?voter_uid=uid-spent`,
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.budget).toBe(100);
+    expect(body.spent).toBe(100);
+    expect(body.remaining).toBe(0);
+    expect(body.votes).toHaveLength(2);
+  });
+
+  it("reports a fresh voter with a full budget", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: `/votes?voter_uid=uid-new`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      budget: 100,
+      spent: 0,
+      remaining: 100,
+      votes: [],
+    });
+  });
+
+  it("requires a voter_uid for the votes listing", async () => {
+    const response = await app.inject({ method: "GET", url: "/votes" });
+    expect(response.statusCode).toBe(400);
+  });
 });
 
 describe("KYC webhook and cooling-off", () => {

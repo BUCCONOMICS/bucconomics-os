@@ -109,6 +109,27 @@ export async function createServer({
     return reply.code(201).send(vote);
   });
 
+  app.get<{ Querystring: { voter_uid?: string } }>(
+    "/votes",
+    async (request, reply) => {
+      const { voter_uid } = request.query;
+      if (!voter_uid) {
+        return reply
+          .code(400)
+          .send({ error: "voter_uid query parameter is required" });
+      }
+      const votes = await store.getVotesByVoter(voter_uid);
+      const budget = Number(process.env.VOTING_CREDIT_BUDGET ?? "100");
+      const spent = creditsSpent(votes.map((vote) => vote.vote_weight));
+      return {
+        votes,
+        budget,
+        spent,
+        remaining: Math.max(0, budget - spent),
+      };
+    },
+  );
+
   app.post("/webhooks/kyc", async (request, reply) => {
     const event = validateKycWebhookEvent(request.body);
 

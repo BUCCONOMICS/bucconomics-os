@@ -22,6 +22,12 @@ export default function Home() {
           >
             Take the suitability quiz
           </Link>
+          <Link
+            href="/proposals"
+            className="px-6 py-3 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition"
+          >
+            Vote on proposals
+          </Link>
         </div>
       </div>
     </main>

@@ -15,6 +15,7 @@ store in `@repo/db`.
 | GET    | `/proposals/:id/votes`   | List votes for a proposal                        |
 | GET    | `/proposals/:id/tally`   | Quadratic tally (`vote_count`, credits, support) |
 | POST   | `/votes`                 | Cast a vote (`409` duplicate, `400` over budget) |
+| GET    | `/votes?voter_uid=<id>`  | Voter credits: `budget`/`spent`/`remaining`      |
 | POST   | `/webhooks/kyc`          | Provider KYC event; starts cooling-off (`202`)   |
 | GET    | `/users/:uid`            | KYC status + `cooling_off_complete`/`can_mint`   |
 | POST   | `/mint`                  | Mint the soul-bound UID on-chain (server-signed) |
@@ -28,7 +29,9 @@ Error responses: `400` validation or `voting_budget_exceeded`, `403`
 Voting is quadratic: a vote with weight `w` costs `w^2` credits, and each
 voter has a global credit budget (default 100, override with
 `VOTING_CREDIT_BUDGET`). The budget is enforced across all proposals a voter
-participates in. `GET /proposals/:id/tally` returns:
+participates in. `GET /votes?voter_uid=<id>` returns the voter's `budget`,
+`spent` (credits used so far) and `remaining`, so clients can gate the vote
+form. `GET /proposals/:id/tally` returns:
 
 - `vote_count` — number of votes
 - `total_weight` — linear sum of weights
