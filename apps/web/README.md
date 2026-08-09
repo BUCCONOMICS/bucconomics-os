@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/create-next-app).
+# BUCCONOMICS Web
 
-## Getting Started
+Client-facing onboarding for BUCCONOMICS: the restricted-investor suitability
+quiz, smart-account connection, and the UID mint gate backed by the KYC /
+cooling-off lifecycle in `apps/api`.
 
-First, run the development server:
+## Flow
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. **Suitability quiz** — 5 questions; the answers map to a risk band
+   (`LOW`/`MEDIUM`/`HIGH`) via `computeRiskBand`.
+2. **Smart account** — connect an ERC-4337 smart account (mocked today via
+   `MockWalletProvider`).
+3. **Identity mint** — on connect, the app records the quiz result through
+   `POST /webhooks/kyc` (starting the 24h regulatory cooling-off) and polls
+   `GET /users/:uid`. The **Mint BUCC_UID** button stays disabled with a
+   countdown until `can_mint` is true. Returning users with a record are not
+   re-recorded (the original cooling-off start is preserved).
+4. **Tranches** — senior/junior USDC deposit amounts.
+5. **Done** — summary.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Configuration
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `NEXT_PUBLIC_API_URL` — base URL of the API, defaults to
+  `http://localhost:3001`. Point it at a running `apps/api` (which needs a
+  Postgres database and `DATABASE_URL`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load Inter, a custom Google Font.
+## Scripts
 
-## Learn More
+- `npm run dev` — Next.js dev server on port 3000.
+- `npm run build` — production build.
+- `npm test` — jest (jsdom) component + lib tests.
+- `npm run check-types` — `next typegen && tsc --noEmit`.
+- `npm run lint` — eslint.
 
-To learn more about Next.js, take a look at the following resources:
+## Notes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Identity minting is simulated (`simulateMintUid`). The real `BUCC_UID.mint`
+  is owner-only on-chain; the server-side path is exercised by the forge Demo
+  script (`contracts/script/Demo.s.sol`).

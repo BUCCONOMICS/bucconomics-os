@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SmartAccount } from "@repo/interfaces";
 import { MockWalletProvider } from "@repo/wallet";
 
 import { SuitabilityQuiz, type Answers } from "../compliance/SuitabilityQuiz";
 import { computeRiskBand, simulateMintUid } from "../../lib/onboarding";
+import { getUserStatus, recordKyc, type UserStatus } from "../../lib/api";
 
 type Step = "quiz" | "wallet" | "uid" | "tranche" | "done";
+
+const POLL_INTERVAL_MS = 10_000;
 
 export function OnboardingFlow() {
   const [step, setStep] = useState<Step>("quiz");
@@ -16,14 +19,58 @@ export function OnboardingFlow() {
   const [uidTokenId, setUidTokenId] = useState<bigint | null>(null);
   const [seniorAmount, setSeniorAmount] = useState("");
   const [juniorAmount, setJuniorAmount] = useState("");
+  const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
+  const [kycError, setKycError] = useState<string | null>(null);
+  const [kycRecording, setKycRecording] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const walletRef = useRef<MockWalletProvider>(new MockWalletProvider());
 
   const riskBand = answers ? computeRiskBand(answers) : null;
+  const canMint = Boolean(userStatus?.can_mint);
 
   const handleQuizSubmit = useCallback((submitted: Answers) => {
     setAnswers(submitted);
     setStep("wallet");
   }, []);
+
+  const syncKyc = useCallback(
+    async (address: string) => {
+      setKycError(null);
+      try {
+        let status = await getUserStatus(address);
+        if (!status) {
+          setKycRecording(true);
+          await recordKyc(address, riskBand ?? "MEDIUM");
+          setKycRecording(false);
+          status = await getUserStatus(address);
+        }
+        setUserStatus(status);
+      } catch (error) {
+        setKycRecording(false);
+        setKycError(
+          error instanceof Error ? error.message : "Failed to sync KYC",
+        );
+      }
+    },
+    [riskBand],
+  );
+
+  useEffect(() => {
+    if (step !== "uid" || !account) return;
+    void syncKyc(account.address);
+    const interval = setInterval(() => {
+      void getUserStatus(account.address)
+        .then(setUserStatus)
+        .catch(() => {});
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [step, account, syncKyc]);
+
+  useEffect(() => {
+    if (step !== "uid" || !userStatus || userStatus.can_mint) return;
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, [step, userStatus]);
 
   const handleConnect = useCallback(async () => {
     const connected = await walletRef.current.connect();
@@ -39,6 +86,18 @@ export function OnboardingFlow() {
 
   const handleDeposit = useCallback(() => {
     setStep("done");
+  }, []);
+
+  const reset = useCallback(() => {
+    setStep("quiz");
+    setAnswers(null);
+    setAccount(null);
+    setUidTokenId(null);
+    setSeniorAmount("");
+    setJuniorAmount("");
+    setUserStatus(null);
+    setKycError(null);
+    setKycRecording(false);
   }, []);
 
   if (step === "wallet") {
@@ -62,7 +121,40 @@ export function OnboardingFlow() {
           Your verified status is minted as a soul-bound BUCC_UID token to your
           account <code className="text-sm">{account?.address}</code>
         </p>
-        <Button onClick={handleMintUid}>Mint BUCC_UID</Button>
+        {kycError && (
+          <div
+            role="alert"
+            className="mb-4 p-3 bg-red-50 text-red-800 rounded-lg"
+          >
+            <p className="mb-2">KYC sync failed: {kycError}</p>
+            <Button onClick={() => account && void syncKyc(account.address)}>
+              Retry
+            </Button>
+          </div>
+        )}
+        {!kycError && kycRecording && (
+          <p role="status" className="mb-4 text-gray-600">
+            Recording your KYC certification…
+          </p>
+        )}
+        {!kycError && !kycRecording && userStatus && !canMint && (
+          <div
+            role="status"
+            className="mb-4 p-4 bg-amber-50 text-amber-900 rounded-lg"
+          >
+            <p className="font-semibold">Regulatory cooling-off in progress</p>
+            <p className="mt-1">
+              Your certification is recorded. Minting unlocks when the
+              cooling-off period ends.
+            </p>
+            <p className="mt-2 font-mono text-2xl">
+              {formatRemaining(userStatus.cooling_off_ends_at, now)}
+            </p>
+          </div>
+        )}
+        <Button onClick={handleMintUid} disabled={!canMint}>
+          Mint BUCC_UID
+        </Button>
       </Card>
     );
   }
@@ -123,18 +215,7 @@ export function OnboardingFlow() {
             {junior.toLocaleString()} USDC → JRN tokens
           </li>
         </ul>
-        <Button
-          onClick={() => {
-            setStep("quiz");
-            setAnswers(null);
-            setAccount(null);
-            setUidTokenId(null);
-            setSeniorAmount("");
-            setJuniorAmount("");
-          }}
-        >
-          Start over
-        </Button>
+        <Button onClick={reset}>Start over</Button>
       </Card>
     );
   }
@@ -144,6 +225,19 @@ export function OnboardingFlow() {
       <SuitabilityQuiz onSubmit={handleQuizSubmit} />
     </Card>
   );
+}
+
+function formatRemaining(endsAt: string | null, now: number): string {
+  if (!endsAt) return "00:00:00";
+  const remainingMs = Math.max(0, new Date(endsAt).getTime() - now);
+  const totalSeconds = Math.floor(remainingMs / 1000);
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(
+    2,
+    "0",
+  );
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
 }
 
 function Card({ children }: { children: React.ReactNode }) {
@@ -157,14 +251,17 @@ function Card({ children }: { children: React.ReactNode }) {
 function Button({
   children,
   onClick,
+  disabled = false,
 }: {
   children: React.ReactNode;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+      disabled={disabled}
+      className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-40 disabled:cursor-not-allowed"
     >
       {children}
     </button>
