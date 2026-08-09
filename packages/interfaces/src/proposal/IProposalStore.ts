@@ -12,4 +12,5 @@ export interface IProposalStore {
   createVote(input: CreateVoteInput): Promise<Vote>;
   getVote(target_id: string, voter_uid: string): Promise<Vote | null>;
   listVotesByProposal(target_id: string): Promise<Vote[]>;
+  getVotesByVoter(voter_uid: string): Promise<Vote[]>;
 }

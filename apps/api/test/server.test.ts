@@ -239,6 +239,162 @@ describe("proposal/vote API", () => {
     });
     expect(response.statusCode).toBe(400);
   });
+
+  it("computes the quadratic tally for a proposal", async () => {
+    const created = (
+      await app.inject({
+        method: "POST",
+        url: "/proposals",
+        payload: validProposal,
+      })
+    ).json();
+
+    await app.inject({
+      method: "POST",
+      url: "/votes",
+      payload: {
+        target_id: created.proposal_id,
+        voter_uid: "uid-voter-1",
+        vote_weight: "1",
+        origin_bucc_id: buccId,
+      },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/votes",
+      payload: {
+        target_id: created.proposal_id,
+        voter_uid: "uid-voter-2",
+        vote_weight: "4",
+        origin_bucc_id: buccId,
+      },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/proposals/${created.proposal_id}/tally`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      vote_count: 2,
+      total_weight: "5",
+      total_credits: "17",
+      quadratic_support: "9",
+    });
+  });
+
+  it("returns 404 for a tally on a missing proposal", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/proposals/00000000-0000-0000-0000-000000000000/tally",
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("rejects a vote whose cost exceeds the credit budget", async () => {
+    const created = (
+      await app.inject({
+        method: "POST",
+        url: "/proposals",
+        payload: validProposal,
+      })
+    ).json();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/votes",
+      payload: {
+        target_id: created.proposal_id,
+        voter_uid: "uid-big-spender",
+        vote_weight: "11",
+        origin_bucc_id: buccId,
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: "voting_budget_exceeded",
+      budget: 100,
+      spent: 0,
+      cost: 121,
+    });
+  });
+
+  it("enforces the credit budget across a voter's proposals", async () => {
+    const proposalA = (
+      await app.inject({
+        method: "POST",
+        url: "/proposals",
+        payload: validProposal,
+      })
+    ).json();
+    const proposalB = (
+      await app.inject({
+        method: "POST",
+        url: "/proposals",
+        payload: validProposal,
+      })
+    ).json();
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/votes",
+      payload: {
+        target_id: proposalA.proposal_id,
+        voter_uid: "uid-budget",
+        vote_weight: "10",
+        origin_bucc_id: buccId,
+      },
+    });
+    expect(first.statusCode).toBe(201);
+
+    const overBudget = await app.inject({
+      method: "POST",
+      url: "/votes",
+      payload: {
+        target_id: proposalB.proposal_id,
+        voter_uid: "uid-budget",
+        vote_weight: "1",
+        origin_bucc_id: buccId,
+      },
+    });
+    expect(overBudget.statusCode).toBe(400);
+    expect(overBudget.json().error).toBe("voting_budget_exceeded");
+    expect(overBudget.json()).toMatchObject({ spent: 100, cost: 1 });
+  });
+
+  it("allows a voter to spend the full budget across proposals", async () => {
+    const proposalA = (
+      await app.inject({
+        method: "POST",
+        url: "/proposals",
+        payload: validProposal,
+      })
+    ).json();
+    const proposalB = (
+      await app.inject({
+        method: "POST",
+        url: "/proposals",
+        payload: validProposal,
+      })
+    ).json();
+
+    for (const [proposal, weight] of [
+      [proposalA, "6"],
+      [proposalB, "8"],
+    ] as const) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/votes",
+        payload: {
+          target_id: proposal.proposal_id,
+          voter_uid: "uid-full-budget",
+          vote_weight: weight,
+          origin_bucc_id: buccId,
+        },
+      });
+      expect(response.statusCode).toBe(201);
+    }
+  });
 });
 
 describe("KYC webhook and cooling-off", () => {

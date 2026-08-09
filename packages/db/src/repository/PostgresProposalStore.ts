@@ -101,6 +101,16 @@ export class PostgresProposalStore implements IProposalStore {
       .execute();
     return rows.map(mapVoteRow);
   }
+
+  async getVotesByVoter(voter_uid: string): Promise<Vote[]> {
+    const rows = await this.db
+      .selectFrom("votes")
+      .selectAll()
+      .where("voter_uid", "=", voter_uid)
+      .orderBy("created_at", "desc")
+      .execute();
+    return rows.map(mapVoteRow);
+  }
 }
 
 function mapProposalRow(row: Selectable<ProposalTable>): Proposal {

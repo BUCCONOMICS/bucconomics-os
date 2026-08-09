@@ -45,3 +45,17 @@ export interface CreateVoteInput {
   vote_weight: string;
   origin_bucc_id: string;
 }
+
+/**
+ * Quadratic voting tally for a proposal. A vote with weight `w` costs `w^2`
+ * credits; the proposal's support is `(sum sqrt(w))^2` over all votes.
+ */
+export interface VoteTally {
+  vote_count: number;
+  /** Linear sum of weights. */
+  total_weight: string;
+  /** Sum of squared weights — total credits spent. */
+  total_credits: string;
+  /** Quadratic support: (sum of sqrt(weight))^2. */
+  quadratic_support: string;
+}

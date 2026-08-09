@@ -3,6 +3,9 @@ import type { IProposalStore, IUserStore } from "@repo/interfaces";
 import {
   DuplicateVoteError,
   ValidationError,
+  computeQuadraticTally,
+  creditCost,
+  creditsSpent,
   validateCreateProposalInput,
   validateCreateVoteInput,
   validateKycWebhookEvent,
@@ -66,8 +69,38 @@ export async function createServer({
     },
   );
 
+  app.get<{ Params: { id: string } }>(
+    "/proposals/:id/tally",
+    async (request, reply) => {
+      const proposal = await store.getProposal(request.params.id);
+      if (!proposal) {
+        return reply
+          .code(404)
+          .send({ error: `Proposal not found: ${request.params.id}` });
+      }
+      const votes = await store.listVotesByProposal(request.params.id);
+      return computeQuadraticTally(votes.map((vote) => vote.vote_weight));
+    },
+  );
+
   app.post("/votes", async (request, reply) => {
     const input = validateCreateVoteInput(request.body);
+    const budget = Number(process.env.VOTING_CREDIT_BUDGET ?? "100");
+    const cost = creditCost(input.vote_weight);
+    const prior = await store.getVotesByVoter(input.voter_uid);
+    const spent = creditsSpent(
+      prior
+        .filter((vote) => vote.target_id !== input.target_id)
+        .map((vote) => vote.vote_weight),
+    );
+    if (spent + cost > budget) {
+      return reply.code(400).send({
+        error: "voting_budget_exceeded",
+        budget,
+        spent,
+        cost,
+      });
+    }
     const vote = await store.createVote(input);
     return reply.code(201).send(vote);
   });

@@ -137,4 +137,35 @@ describe("PostgresProposalStore", () => {
       "uid-voter-2",
     ]);
   });
+
+  it("lists votes by voter across proposals", async () => {
+    const store = new PostgresProposalStore(testDb.db);
+    const proposalA = await store.createProposal(makeProposalInput());
+    const proposalB = await store.createProposal(makeProposalInput());
+
+    await store.createVote({
+      target_id: proposalA.proposal_id,
+      voter_uid: "uid-voter",
+      vote_weight: "9",
+      origin_bucc_id: proposalA.origin_bucc_id,
+    });
+    await store.createVote({
+      target_id: proposalB.proposal_id,
+      voter_uid: "uid-voter",
+      vote_weight: "4",
+      origin_bucc_id: proposalB.origin_bucc_id,
+    });
+    await store.createVote({
+      target_id: proposalA.proposal_id,
+      voter_uid: "uid-other",
+      vote_weight: "1",
+      origin_bucc_id: proposalA.origin_bucc_id,
+    });
+
+    const votes = await store.getVotesByVoter("uid-voter");
+    expect(votes).toHaveLength(2);
+    expect(votes.map((v) => v.target_id).sort()).toEqual(
+      [proposalA.proposal_id, proposalB.proposal_id].sort(),
+    );
+  });
 });

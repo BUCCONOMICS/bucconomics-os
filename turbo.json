@@ -13,7 +13,8 @@
         "DATABASE_URL",
         "PORT",
         "KYC_COOLING_OFF_HOURS",
-        "NEXT_PUBLIC_API_URL"
+        "NEXT_PUBLIC_API_URL",
+        "VOTING_CREDIT_BUDGET"
       ]
     },
     "check-types": {
