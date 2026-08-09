@@ -1,4 +1,4 @@
-import type { Address } from "../types";
+import type { Address } from "../types.js";
 
 /**
  * A connected ERC-4337 smart account. `address` is the account address;

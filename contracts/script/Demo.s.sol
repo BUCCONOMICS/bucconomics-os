@@ -31,6 +31,14 @@ contract Demo is Script {
         pool.depositSenior(deposit / 2);
         pool.depositJunior(deposit / 2);
 
+        // Track B: an approved recipient draws down against the pool. The
+        // DAO (owner) approves the wallet; the recipient signs the drawdown.
+        address recipient = vm.addr(vm.envUint("DEMO_RECIPIENT_KEY"));
+        pool.setApprovedRecipient(recipient, true);
+        vm.stopBroadcast();
+
+        vm.startBroadcast(vm.envUint("DEMO_RECIPIENT_KEY"));
+        pool.drawdown(deposit / 4);
         vm.stopBroadcast();
 
         console2.log("MockUSDC:    ", address(usdc));
@@ -42,5 +50,8 @@ contract Demo is Script {
         console2.log("Junior token:", pool.JUNIOR_TOKEN().balanceOf(investor));
         console2.log("Senior pool: ", pool.totalSeniorDeposits());
         console2.log("Junior pool: ", pool.totalJuniorDeposits());
+        console2.log("Total drawn: ", pool.totalDrawn());
+        console2.log("Recipient:   ", recipient);
+        console2.log("Recipient USDC balance:", usdc.balanceOf(recipient));
     }
 }

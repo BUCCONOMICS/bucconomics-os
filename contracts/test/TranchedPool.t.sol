@@ -144,4 +144,69 @@ contract TranchedPoolTest is Test {
         assertEq(pool.totalJuniorDeposits(), amount);
         assertEq(usdc.balanceOf(address(pool)), amount);
     }
+
+    function test_Drawdown_MovesUSDCToApprovedRecipient() public {
+        _fundAndApprove(investor, HUNDRED);
+        vm.prank(investor);
+        pool.depositSenior(HUNDRED);
+
+        address recipient = makeAddr("recipient");
+        vm.prank(address(this));
+        pool.setApprovedRecipient(recipient, true);
+
+        uint256 drawAmount = 40 * 10 ** USDC_DECIMALS;
+        vm.prank(recipient);
+        pool.drawdown(drawAmount);
+
+        assertEq(usdc.balanceOf(recipient), drawAmount, "recipient USDC");
+        assertEq(pool.totalDrawn(), drawAmount, "total drawn");
+        assertEq(usdc.balanceOf(address(pool)), HUNDRED - drawAmount, "pool reduced");
+    }
+
+    function test_Drawdown_UnapprovedRecipient_Reverts() public {
+        _fundAndApprove(investor, HUNDRED);
+        vm.prank(investor);
+        pool.depositSenior(HUNDRED);
+
+        address recipient = makeAddr("recipient");
+        vm.prank(recipient);
+        vm.expectRevert(TranchedPool.UnapprovedRecipient.selector);
+        pool.drawdown(HUNDRED);
+    }
+
+    function test_Drawdown_RevokedRecipient_Reverts() public {
+        _fundAndApprove(investor, HUNDRED);
+        vm.prank(investor);
+        pool.depositSenior(HUNDRED);
+
+        address recipient = makeAddr("recipient");
+        vm.prank(address(this));
+        pool.setApprovedRecipient(recipient, true);
+        vm.prank(address(this));
+        pool.setApprovedRecipient(recipient, false);
+
+        vm.prank(recipient);
+        vm.expectRevert(TranchedPool.UnapprovedRecipient.selector);
+        pool.drawdown(HUNDRED);
+    }
+
+    function test_Drawdown_ExceedingLiquidity_Reverts() public {
+        _fundAndApprove(investor, HUNDRED);
+        vm.prank(investor);
+        pool.depositSenior(HUNDRED);
+
+        address recipient = makeAddr("recipient");
+        vm.prank(address(this));
+        pool.setApprovedRecipient(recipient, true);
+
+        vm.prank(recipient);
+        vm.expectRevert(TranchedPool.InsufficientPoolLiquidity.selector);
+        pool.drawdown(HUNDRED + 1);
+    }
+
+    function test_SetApprovedRecipient_OnlyOwner() public {
+        vm.prank(attacker);
+        vm.expectRevert();
+        pool.setApprovedRecipient(attacker, true);
+    }
 }

@@ -3,7 +3,7 @@ import type {
   CreateVoteInput,
   Proposal,
   Vote,
-} from "./types";
+} from "./types.js";
 
 export interface IProposalStore {
   createProposal(input: CreateProposalInput): Promise<Proposal>;
