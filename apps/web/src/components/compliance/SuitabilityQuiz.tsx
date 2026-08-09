@@ -234,7 +234,6 @@ export const SuitabilityQuiz: React.FC<SuitabilityQuizProps> = ({
                     }
                     className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500"
                     aria-label={`Option: ${option.label}`}
-                    required
                   />
                   <span className="ml-3 text-gray-700">{option.label}</span>
                 </label>
