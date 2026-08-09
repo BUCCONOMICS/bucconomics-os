@@ -1,1 +1,1 @@
-export { MockWalletProvider } from "./mock/MockWalletProvider.js";
+export { MockWalletProvider } from "./mock/MockWalletProvider";

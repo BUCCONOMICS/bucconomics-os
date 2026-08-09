@@ -1,4 +1,4 @@
-import { MockWalletProvider } from "../src/index.js";
+import { MockWalletProvider } from "../src/index";
 
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>();
