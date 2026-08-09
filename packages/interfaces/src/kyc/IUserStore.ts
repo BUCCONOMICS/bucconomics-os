@@ -12,4 +12,9 @@ export interface IUserStore {
     risk_band: RiskBand;
     cooling_off_ends_at: Date;
   }): Promise<UserIdentity>;
+  /** Records the on-chain UID mint; returns null if the user is unknown. */
+  markUidMinted(
+    user_uid: string,
+    token_id: string,
+  ): Promise<UserIdentity | null>;
 }

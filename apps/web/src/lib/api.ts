@@ -19,6 +19,11 @@ interface KycAccepted {
   cooling_off_ends_at: string;
 }
 
+export interface MintResult {
+  user_uid: string;
+  uid_token_id: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -63,4 +68,12 @@ export async function getUserStatus(
     );
   }
   return (await response.json()) as UserStatus;
+}
+
+/** Asks the server to mint the soul-bound UID on-chain. */
+export function mintUid(userUid: string): Promise<MintResult> {
+  return request<MintResult>("/mint", {
+    method: "POST",
+    body: JSON.stringify({ user_uid: userUid }),
+  });
 }

@@ -5,3 +5,4 @@ export {
 } from "./proposal.js";
 export { createVoteInputSchema, validateCreateVoteInput } from "./vote.js";
 export { kycWebhookEventSchema, validateKycWebhookEvent } from "./kyc.js";
+export { mintUidInputSchema, validateMintUidInput } from "./mint.js";

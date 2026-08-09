@@ -16,8 +16,13 @@ import {
   PostgresUserStore,
 } from "@repo/db";
 import { createServer } from "../src/server.js";
+import { MintUidError, type UidMinter } from "../src/mint.js";
 
 jest.setTimeout(120_000);
+
+const fakeMinter: UidMinter = {
+  mintUid: jest.fn(async () => ({ tokenId: "42" })),
+};
 
 describe("proposal/vote API", () => {
   let container: StartedPostgreSqlContainer;
@@ -45,6 +50,7 @@ describe("proposal/vote API", () => {
     app = await createServer({
       store: PostgresProposalStore.fromPool(pool),
       userStore: PostgresUserStore.fromPool(pool),
+      minter: fakeMinter,
     });
   });
 
@@ -423,6 +429,7 @@ describe("KYC webhook and cooling-off", () => {
     app = await createServer({
       store: PostgresProposalStore.fromPool(pool),
       userStore: PostgresUserStore.fromPool(pool),
+      minter: fakeMinter,
     });
   });
 
@@ -533,6 +540,158 @@ describe("KYC webhook and cooling-off", () => {
       method: "POST",
       url: "/webhooks/kyc",
       payload: { user_uid: "", status: "passed" },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+});
+
+describe("UID mint endpoint", () => {
+  let container: StartedPostgreSqlContainer;
+  let pool: Pool;
+  let app: FastifyInstance;
+  let minter: jest.Mocked<UidMinter>;
+
+  beforeAll(async () => {
+    container = await new PostgreSqlContainer("postgres:16-alpine")
+      .withDatabase("test")
+      .withUsername("test")
+      .withPassword("test")
+      .start();
+
+    const poolConfig: PoolConfig = {
+      host: container.getHost(),
+      port: container.getPort(),
+      database: container.getDatabase(),
+      user: container.getUsername(),
+      password: container.getPassword(),
+    };
+
+    await migrateToLatest(poolConfig);
+
+    pool = new Pool(poolConfig);
+  });
+
+  afterAll(async () => {
+    await pool.end();
+    await container.stop();
+  });
+
+  beforeEach(async () => {
+    await pool.query("DELETE FROM users");
+    minter = {
+      mintUid: jest.fn(async () => ({ tokenId: "42" })),
+    };
+    app = await createServer({
+      store: PostgresProposalStore.fromPool(pool),
+      userStore: PostgresUserStore.fromPool(pool),
+      minter,
+    });
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  const recipient = "0xabc123";
+
+  async function eligibleUser() {
+    await app.inject({
+      method: "POST",
+      url: "/webhooks/kyc",
+      payload: { user_uid: recipient, status: "passed", risk_band: "LOW" },
+    });
+    const { rowCount } = await pool.query(
+      `UPDATE users SET cooling_off_ends_at = NOW() - INTERVAL '1 minute' WHERE user_uid = $1`,
+      [recipient],
+    );
+    expect(rowCount).toBe(1);
+  }
+
+  it("mints a UID once the user is eligible", async () => {
+    await eligibleUser();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/mint",
+      payload: { user_uid: recipient },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({
+      user_uid: recipient,
+      uid_token_id: "42",
+    });
+    expect(minter.mintUid).toHaveBeenCalledWith(recipient);
+
+    const user = await app.inject({
+      method: "GET",
+      url: `/users/${recipient}`,
+    });
+    expect(user.json().minted_uid_token_id).toBe("42");
+  });
+
+  it("returns 404 for an unknown user", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/mint",
+      payload: { user_uid: recipient },
+    });
+    expect(response.statusCode).toBe(404);
+    expect(minter.mintUid).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 while the cooling-off period is still running", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/webhooks/kyc",
+      payload: { user_uid: recipient, status: "passed", risk_band: "LOW" },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/mint",
+      payload: { user_uid: recipient },
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error).toBe("mint_not_eligible");
+    expect(minter.mintUid).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 on a repeated mint and does not re-mint", async () => {
+    await eligibleUser();
+    await app.inject({
+      method: "POST",
+      url: "/mint",
+      payload: { user_uid: recipient },
+    });
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/mint",
+      payload: { user_uid: recipient },
+    });
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json().error).toBe("uid_already_minted");
+    expect(minter.mintUid).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 502 when the on-chain mint fails", async () => {
+    await eligibleUser();
+    minter.mintUid.mockRejectedValueOnce(new MintUidError("RPC down"));
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/mint",
+      payload: { user_uid: recipient },
+    });
+    expect(response.statusCode).toBe(502);
+    expect(response.json().error).toBe("mint_failed");
+  });
+
+  it("rejects a malformed mint request with 400", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/mint",
+      payload: { user_uid: "" },
     });
     expect(response.statusCode).toBe(400);
   });

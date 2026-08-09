@@ -17,9 +17,11 @@ store in `@repo/db`.
 | POST   | `/votes`                 | Cast a vote (`409` duplicate, `400` over budget) |
 | POST   | `/webhooks/kyc`          | Provider KYC event; starts cooling-off (`202`)   |
 | GET    | `/users/:uid`            | KYC status + `cooling_off_complete`/`can_mint`   |
+| POST   | `/mint`                  | Mint the soul-bound UID on-chain (server-signed) |
 
-Error responses: `400` validation or `voting_budget_exceeded`, `404` missing
-proposal/user, `409` duplicate vote, `500` internal.
+Error responses: `400` validation or `voting_budget_exceeded`, `403`
+`mint_not_eligible`, `404` missing proposal/user, `409` duplicate vote or
+`uid_already_minted`, `502` `mint_failed`, `500` internal.
 
 ### Quadratic voting
 
@@ -32,6 +34,19 @@ participates in. `GET /proposals/:id/tally` returns:
 - `total_weight` — linear sum of weights
 - `total_credits` — sum of squared weights (credits spent)
 - `quadratic_support` — `(sum of sqrt(weight))^2`
+
+### UID mint
+
+`POST /mint` with `{ "user_uid": "0x..." }` mints the soul-bound BUCC_UID to
+the smart account (the `user_uid` is treated as the recipient address) once
+the user's KYC is `passed` and the cooling-off has elapsed. The server holds
+the BUCC_UID owner key and signs the transaction through the `MintUid` forge
+script (`contracts/script/MintUid.s.sol`). The mint is idempotent: a second
+call returns `409 uid_already_minted`, and the resulting token id is recorded
+on the user row.
+
+Requires `BUCC_UID_ADDRESS` and `MINT_OWNER_KEY`; `MINT_RPC_URL` defaults to
+`http://localhost:8545` (anvil). Requires `forge` on the API host's `PATH`.
 
 ### KYC webhook
 
@@ -47,6 +62,8 @@ Requires a Postgres `DATABASE_URL`:
 
 ```bash
 export DATABASE_URL=postgres://user:pass@localhost:5432/bucconomics
+export BUCC_UID_ADDRESS=0x...            # deployed BUCC_UID
+export MINT_OWNER_KEY=0x...              # BUCC_UID owner private key
 
 npm run migrate --workspace=@repo/api   # run migrations
 npm run dev --workspace=@repo/api       # tsx watch on :3001
@@ -67,4 +84,7 @@ npm test --workspace=@repo/api
 - The store is injected into `createServer`, keeping the HTTP layer testable
   without a database.
 - Recipient approval and drawdowns live on-chain (`TranchedPool.drawdown`);
-  wiring this API to the contracts is the next step.
+  wiring the API to those contracts is the next step.
+- The mint endpoint is the API bridge to the chain: `ForgeUidMinter` shells out
+  to `forge script script/MintUid.s.sol`, so no additional node-side ethers
+  dependency is needed.

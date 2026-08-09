@@ -1,4 +1,4 @@
-import { computeRiskBand, simulateMintUid } from "./onboarding";
+import { computeRiskBand } from "./onboarding";
 
 const answers = (levels: number[]) =>
   Object.fromEntries(
@@ -19,12 +19,5 @@ describe("computeRiskBand", () => {
 
   it("maps high scores to HIGH", () => {
     expect(computeRiskBand(answers([4, 4, 4, 4, 4]))).toBe("HIGH");
-  });
-});
-
-describe("simulateMintUid", () => {
-  it("is deterministic per address", () => {
-    const address = "0xabc";
-    expect(simulateMintUid(address)).toBe(simulateMintUid(address));
   });
 });

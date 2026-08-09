@@ -1,5 +1,6 @@
 import { PostgresProposalStore, PostgresUserStore } from "@repo/db";
 import { Pool } from "pg";
+import { ForgeUidMinter } from "./mint.js";
 import { createServer } from "./server.js";
 
 const port = Number(process.env.PORT ?? 3001);
@@ -14,6 +15,7 @@ const pool = new Pool({ connectionString: databaseUrl });
 const app = await createServer({
   store: PostgresProposalStore.fromPool(pool),
   userStore: PostgresUserStore.fromPool(pool),
+  minter: new ForgeUidMinter(),
   logger: true,
 });
 

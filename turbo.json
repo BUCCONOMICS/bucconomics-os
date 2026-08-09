@@ -14,7 +14,10 @@
         "PORT",
         "KYC_COOLING_OFF_HOURS",
         "NEXT_PUBLIC_API_URL",
-        "VOTING_CREDIT_BUDGET"
+        "VOTING_CREDIT_BUDGET",
+        "MINT_RPC_URL",
+        "BUCC_UID_ADDRESS",
+        "MINT_OWNER_KEY"
       ]
     },
     "check-types": {

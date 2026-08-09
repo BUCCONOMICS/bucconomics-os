@@ -49,6 +49,23 @@ export class PostgresUserStore implements IUserStore {
       .executeTakeFirstOrThrow();
     return mapUserRow(row);
   }
+
+  async markUidMinted(
+    user_uid: string,
+    token_id: string,
+  ): Promise<UserIdentity | null> {
+    const row = await this.db
+      .updateTable("users")
+      .set({
+        minted_uid_token_id: token_id,
+        minted_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where("user_uid", "=", user_uid)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? mapUserRow(row) : null;
+  }
 }
 
 function mapUserRow(row: Selectable<UserTable>): UserIdentity {
@@ -57,6 +74,8 @@ function mapUserRow(row: Selectable<UserTable>): UserIdentity {
     kyc_status: row.kyc_status,
     risk_band: row.risk_band,
     cooling_off_ends_at: row.cooling_off_ends_at,
+    minted_uid_token_id: row.minted_uid_token_id,
+    minted_at: row.minted_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

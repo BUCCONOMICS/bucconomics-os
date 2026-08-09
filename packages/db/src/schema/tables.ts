@@ -33,6 +33,8 @@ export interface UserTable {
   kyc_status: KycStatus;
   risk_band: RiskBand;
   cooling_off_ends_at: Date | null;
+  minted_uid_token_id: string | null;
+  minted_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

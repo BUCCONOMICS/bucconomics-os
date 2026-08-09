@@ -8,6 +8,10 @@ export interface UserIdentity {
   risk_band: RiskBand;
   /** When the 24h regulatory cooling-off period ends, or null if not started. */
   cooling_off_ends_at: Date | null;
+  /** On-chain BUCC_UID token id once minted by the server, or null. */
+  minted_uid_token_id: string | null;
+  /** When the UID was minted on-chain, or null. */
+  minted_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }

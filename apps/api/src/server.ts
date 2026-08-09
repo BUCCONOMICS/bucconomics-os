@@ -9,19 +9,23 @@ import {
   validateCreateProposalInput,
   validateCreateVoteInput,
   validateKycWebhookEvent,
+  validateMintUidInput,
 } from "@repo/db";
 import { ZodError } from "zod";
+import { MintUidError, type UidMinter } from "./mint.js";
 
 export interface ApiOptions {
   store: IProposalStore;
   userStore: IUserStore;
+  minter: UidMinter;
   logger?: boolean;
 }
 
-/** Builds the proposal/vote and KYC HTTP API around the injected stores. */
+/** Builds the proposal/vote, KYC and UID mint HTTP API around injected deps. */
 export async function createServer({
   store,
   userStore,
+  minter,
   logger = false,
 }: ApiOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger });
@@ -150,6 +154,43 @@ export async function createServer({
     },
   );
 
+  app.post("/mint", async (request, reply) => {
+    const input = validateMintUidInput(request.body);
+    const user = await userStore.getUser(input.user_uid);
+    if (!user) {
+      return reply
+        .code(404)
+        .send({ error: `User not found: ${input.user_uid}` });
+    }
+
+    if (user.minted_uid_token_id !== null) {
+      return reply.code(409).send({
+        error: "uid_already_minted",
+        user_uid: input.user_uid,
+        minted_uid_token_id: user.minted_uid_token_id,
+      });
+    }
+
+    const coolingOffComplete =
+      user.cooling_off_ends_at !== null &&
+      user.cooling_off_ends_at.getTime() <= Date.now();
+    if (user.kyc_status !== "passed" || !coolingOffComplete) {
+      return reply.code(403).send({
+        error: "mint_not_eligible",
+        user_uid: input.user_uid,
+        reason: "KYC must be passed and the cooling-off period elapsed",
+      });
+    }
+
+    const { tokenId } = await minter.mintUid(input.user_uid);
+    await userStore.markUidMinted(input.user_uid, tokenId);
+
+    return reply.code(201).send({
+      user_uid: input.user_uid,
+      uid_token_id: tokenId,
+    });
+  });
+
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ValidationError) {
       return sendValidationError(reply, error.message, error.field);
@@ -164,6 +205,9 @@ export async function createServer({
     }
     if (error instanceof DuplicateVoteError) {
       return reply.code(409).send({ error: error.message });
+    }
+    if (error instanceof MintUidError) {
+      return reply.code(502).send({ error: "mint_failed" });
     }
     request.log.error(error);
     return reply.code(500).send({ error: "internal_error" });

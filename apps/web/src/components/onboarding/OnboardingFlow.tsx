@@ -5,8 +5,13 @@ import type { SmartAccount } from "@repo/interfaces";
 import { MockWalletProvider } from "@repo/wallet";
 
 import { SuitabilityQuiz, type Answers } from "../compliance/SuitabilityQuiz";
-import { computeRiskBand, simulateMintUid } from "../../lib/onboarding";
-import { getUserStatus, recordKyc, type UserStatus } from "../../lib/api";
+import { computeRiskBand } from "../../lib/onboarding";
+import {
+  getUserStatus,
+  mintUid,
+  recordKyc,
+  type UserStatus,
+} from "../../lib/api";
 
 type Step = "quiz" | "wallet" | "uid" | "tranche" | "done";
 
@@ -22,6 +27,8 @@ export function OnboardingFlow() {
   const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
   const [kycError, setKycError] = useState<string | null>(null);
   const [kycRecording, setKycRecording] = useState(false);
+  const [mintError, setMintError] = useState<string | null>(null);
+  const [minting, setMinting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const walletRef = useRef<MockWalletProvider>(new MockWalletProvider());
 
@@ -78,11 +85,22 @@ export function OnboardingFlow() {
     setStep("uid");
   }, []);
 
-  const handleMintUid = useCallback(() => {
-    if (!account) return;
-    setUidTokenId(simulateMintUid(account.address));
-    setStep("tranche");
-  }, [account]);
+  const handleMintUid = useCallback(async () => {
+    if (!account || minting) return;
+    setMinting(true);
+    setMintError(null);
+    try {
+      const { uid_token_id } = await mintUid(account.address);
+      setUidTokenId(BigInt(uid_token_id));
+      setStep("tranche");
+    } catch (error) {
+      setMintError(
+        error instanceof Error ? error.message : "Failed to mint UID",
+      );
+    } finally {
+      setMinting(false);
+    }
+  }, [account, minting]);
 
   const handleDeposit = useCallback(() => {
     setStep("done");
@@ -98,6 +116,8 @@ export function OnboardingFlow() {
     setUserStatus(null);
     setKycError(null);
     setKycRecording(false);
+    setMintError(null);
+    setMinting(false);
   }, []);
 
   if (step === "wallet") {
@@ -152,8 +172,19 @@ export function OnboardingFlow() {
             </p>
           </div>
         )}
-        <Button onClick={handleMintUid} disabled={!canMint}>
-          Mint BUCC_UID
+        {mintError && (
+          <div
+            role="alert"
+            className="mb-4 p-3 bg-red-50 text-red-800 rounded-lg"
+          >
+            <p>UID mint failed: {mintError}</p>
+          </div>
+        )}
+        <Button
+          onClick={() => void handleMintUid()}
+          disabled={!canMint || minting}
+        >
+          {minting ? "Minting…" : "Mint BUCC_UID"}
         </Button>
       </Card>
     );

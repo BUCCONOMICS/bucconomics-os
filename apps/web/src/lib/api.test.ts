@@ -1,4 +1,4 @@
-import { API_BASE_URL, getUserStatus, recordKyc } from "./api";
+import { API_BASE_URL, getUserStatus, mintUid, recordKyc } from "./api";
 
 describe("kyc api client", () => {
   const originalFetch = global.fetch;
@@ -64,5 +64,36 @@ describe("kyc api client", () => {
     }) as unknown as typeof fetch;
 
     await expect(recordKyc("0xabc", "LOW")).rejects.toThrow(/400/);
+  });
+
+  it("requests a server-side UID mint", async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ user_uid: "0xabc", uid_token_id: "42" }),
+    });
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    await expect(mintUid("0xabc")).resolves.toEqual({
+      user_uid: "0xabc",
+      uid_token_id: "42",
+    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/mint`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ user_uid: "0xabc" }),
+      }),
+    );
+  });
+
+  it("surfaces a failed mint as an error", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => ({ error: "mint_failed" }),
+    }) as unknown as typeof fetch;
+
+    await expect(mintUid("0xabc")).rejects.toThrow(/502/);
   });
 });

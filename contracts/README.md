@@ -51,6 +51,19 @@ $ anvil
 $ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
 ```
 
+### Mint a UID (server-side mint)
+
+Mints one soul-bound BUCC_UID to a recipient, signed by the contract owner.
+Used by the API's `POST /mint` endpoint after the KYC cooling-off has elapsed:
+
+```shell
+$ BUCC_UID_ADDRESS=<addr> MINT_RECIPIENT=<0x...> forge script \
+    script/MintUid.s.sol --rpc-url http://localhost:8545 \
+    --private-key <owner-key> --broadcast
+```
+
+The script logs `tokenId=<id>`, which the API parses to record the mint.
+
 ### Cast
 
 ```shell

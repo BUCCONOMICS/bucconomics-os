@@ -2,11 +2,17 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { OnboardingFlow } from "./OnboardingFlow";
-import { getUserStatus, recordKyc, type UserStatus } from "../../lib/api";
+import {
+  getUserStatus,
+  mintUid,
+  recordKyc,
+  type UserStatus,
+} from "../../lib/api";
 
 jest.mock("../../lib/api", () => ({
   getUserStatus: jest.fn(),
   recordKyc: jest.fn(),
+  mintUid: jest.fn(),
 }));
 
 jest.mock("@repo/wallet", () => ({
@@ -24,6 +30,7 @@ const mockedGetUserStatus = getUserStatus as jest.MockedFunction<
   typeof getUserStatus
 >;
 const mockedRecordKyc = recordKyc as jest.MockedFunction<typeof recordKyc>;
+const mockedMintUid = mintUid as jest.MockedFunction<typeof mintUid>;
 
 const address = "0xabc123";
 
@@ -98,10 +105,14 @@ describe("OnboardingFlow KYC wiring", () => {
     ).toBeInTheDocument();
   });
 
-  it("enables minting once can_mint is true and advances to tranches", async () => {
+  it("mints the UID through the server and advances to tranches", async () => {
     mockedGetUserStatus.mockResolvedValue(
       coolingStatus({ can_mint: true, cooling_off_complete: true }),
     );
+    mockedMintUid.mockResolvedValue({
+      user_uid: address,
+      uid_token_id: "42",
+    });
 
     await answerQuizAndConnect();
 
@@ -111,9 +122,33 @@ describe("OnboardingFlow KYC wiring", () => {
     await waitFor(() => expect(mintButton).toBeEnabled());
     fireEvent.click(mintButton);
 
+    await waitFor(() => {
+      expect(mockedMintUid).toHaveBeenCalledWith(address);
+    });
     expect(
-      screen.getByRole("heading", { name: /Choose your tranche/i }),
+      await screen.findByRole("heading", { name: /Choose your tranche/i }),
     ).toBeInTheDocument();
+  });
+
+  it("shows an error and stays put when the server mint fails", async () => {
+    mockedGetUserStatus.mockResolvedValue(
+      coolingStatus({ can_mint: true, cooling_off_complete: true }),
+    );
+    mockedMintUid.mockRejectedValue(new Error("RPC down"));
+
+    await answerQuizAndConnect();
+
+    const mintButton = await screen.findByRole("button", {
+      name: /Mint BUCC_UID/i,
+    });
+    await waitFor(() => expect(mintButton).toBeEnabled());
+    fireEvent.click(mintButton);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/RPC down/i);
+    expect(
+      screen.getByRole("button", { name: /Mint BUCC_UID/i }),
+    ).toBeEnabled();
   });
 
   it("shows an error and keeps minting disabled when KYC sync fails", async () => {

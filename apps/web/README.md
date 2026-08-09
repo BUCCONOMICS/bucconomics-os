@@ -14,7 +14,9 @@ cooling-off lifecycle in `apps/api`.
    `POST /webhooks/kyc` (starting the 24h regulatory cooling-off) and polls
    `GET /users/:uid`. The **Mint BUCC_UID** button stays disabled with a
    countdown until `can_mint` is true. Returning users with a record are not
-   re-recorded (the original cooling-off start is preserved).
+   re-recorded (the original cooling-off start is preserved). Clicking **Mint
+   BUCC_UID** asks the server (`POST /mint`) to mint the soul-bound token
+   on-chain; the returned token id replaces the old client-side simulation.
 4. **Tranches** — senior/junior USDC deposit amounts.
 5. **Done** — summary.
 
@@ -34,6 +36,8 @@ cooling-off lifecycle in `apps/api`.
 
 ## Notes
 
-- Identity minting is simulated (`simulateMintUid`). The real `BUCC_UID.mint`
-  is owner-only on-chain; the server-side path is exercised by the forge Demo
-  script (`contracts/script/Demo.s.sol`).
+- The UID mint runs server-side: the server holds the BUCC_UID owner key and
+  signs the transaction via the `MintUid` forge script
+  (`contracts/script/MintUid.s.sol`). The API needs `BUCC_UID_ADDRESS`,
+  `MINT_OWNER_KEY` (and a running chain, e.g. anvil on `:8545`) for the mint
+  to succeed.
