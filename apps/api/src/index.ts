@@ -1,4 +1,4 @@
-import { PostgresProposalStore } from "@repo/db";
+import { PostgresProposalStore, PostgresUserStore } from "@repo/db";
 import { Pool } from "pg";
 import { createServer } from "./server.js";
 
@@ -10,9 +10,12 @@ if (!databaseUrl) {
 }
 
 const pool = new Pool({ connectionString: databaseUrl });
-const store = PostgresProposalStore.fromPool(pool);
 
-const app = await createServer({ store, logger: true });
+const app = await createServer({
+  store: PostgresProposalStore.fromPool(pool),
+  userStore: PostgresUserStore.fromPool(pool),
+  logger: true,
+});
 
 async function shutdown(): Promise<void> {
   await app.close();

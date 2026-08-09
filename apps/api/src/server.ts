@@ -1,21 +1,24 @@
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
-import type { IProposalStore } from "@repo/interfaces";
+import type { IProposalStore, IUserStore } from "@repo/interfaces";
 import {
   DuplicateVoteError,
   ValidationError,
   validateCreateProposalInput,
   validateCreateVoteInput,
+  validateKycWebhookEvent,
 } from "@repo/db";
 import { ZodError } from "zod";
 
 export interface ApiOptions {
   store: IProposalStore;
+  userStore: IUserStore;
   logger?: boolean;
 }
 
-/** Builds the proposal/vote HTTP API around an IProposalStore. */
+/** Builds the proposal/vote and KYC HTTP API around the injected stores. */
 export async function createServer({
   store,
+  userStore,
   logger = false,
 }: ApiOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger });
@@ -68,6 +71,51 @@ export async function createServer({
     const vote = await store.createVote(input);
     return reply.code(201).send(vote);
   });
+
+  app.post("/webhooks/kyc", async (request, reply) => {
+    const event = validateKycWebhookEvent(request.body);
+
+    if (event.status !== "passed") {
+      return reply.code(202).send({
+        status: "ignored",
+        reason: `status ${event.status} requires no action`,
+      });
+    }
+
+    const coolingOffHours = Number(process.env.KYC_COOLING_OFF_HOURS ?? "24");
+    const cooling_off_ends_at = new Date(
+      Date.now() + coolingOffHours * 60 * 60 * 1000,
+    );
+
+    const user = await userStore.recordKycPassed({
+      user_uid: event.user_uid,
+      risk_band: event.risk_band ?? "PENDING",
+      cooling_off_ends_at,
+    });
+
+    return reply.code(202).send({
+      status: "accepted",
+      user_uid: user.user_uid,
+      cooling_off_ends_at: user.cooling_off_ends_at,
+    });
+  });
+
+  app.get<{ Params: { uid: string } }>(
+    "/users/:uid",
+    async (request, reply) => {
+      const user = await userStore.getUser(request.params.uid);
+      if (!user) {
+        return reply
+          .code(404)
+          .send({ error: `User not found: ${request.params.uid}` });
+      }
+      const coolingOffComplete =
+        user.cooling_off_ends_at !== null &&
+        user.cooling_off_ends_at.getTime() <= Date.now();
+      const can_mint = user.kyc_status === "passed" && coolingOffComplete;
+      return { ...user, cooling_off_complete: coolingOffComplete, can_mint };
+    },
+  );
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ValidationError) {

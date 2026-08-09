@@ -23,3 +23,16 @@ export interface VoteTable {
   origin_bucc_id: string;
   created_at: Generated<Date>;
 }
+
+export type KycStatus = "pending" | "passed" | "failed";
+
+export type RiskBand = "LOW" | "MEDIUM" | "HIGH" | "PENDING";
+
+export interface UserTable {
+  user_uid: string;
+  kyc_status: KycStatus;
+  risk_band: RiskBand;
+  cooling_off_ends_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}

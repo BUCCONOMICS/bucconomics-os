@@ -1,21 +1,32 @@
 # @repo/api
 
-HTTP API for the BUCCONOMICS Community Engine: proposal submission and civic
-voting over the PostgreSQL store in `@repo/db`.
+HTTP API for the BUCCONOMICS Community Engine: proposal submission, civic
+voting, and the KYC / cooling-off lifecycle, all over the PostgreSQL store
+in `@repo/db`.
 
 ## Endpoints
 
-| Method | Path                     | Description                      |
-| ------ | ------------------------ | -------------------------------- |
-| GET    | `/health`                | Liveness check                   |
-| POST   | `/proposals`             | Create a proposal (validated)    |
-| GET    | `/proposals?buccId=<id>` | List proposals for a BUCC        |
-| GET    | `/proposals/:id`         | Fetch a single proposal          |
-| GET    | `/proposals/:id/votes`   | List votes for a proposal        |
-| POST   | `/votes`                 | Cast a vote (`409` on duplicate) |
+| Method | Path                     | Description                                    |
+| ------ | ------------------------ | ---------------------------------------------- |
+| GET    | `/health`                | Liveness check                                 |
+| POST   | `/proposals`             | Create a proposal (validated)                  |
+| GET    | `/proposals?buccId=<id>` | List proposals for a BUCC                      |
+| GET    | `/proposals/:id`         | Fetch a single proposal                        |
+| GET    | `/proposals/:id/votes`   | List votes for a proposal                      |
+| POST   | `/votes`                 | Cast a vote (`409` on duplicate)               |
+| POST   | `/webhooks/kyc`          | Provider KYC event; starts cooling-off (`202`) |
+| GET    | `/users/:uid`            | KYC status + `cooling_off_complete`/`can_mint` |
 
-Error responses: `400` validation, `404` missing proposal, `409` duplicate
-vote, `500` internal.
+Error responses: `400` validation, `404` missing proposal/user, `409`
+duplicate vote, `500` internal.
+
+### KYC webhook
+
+A `KYC_PASSED` event (`status: "passed"`, optionally with a `risk_band`
+computed by the Private Intelligence Gateway) records the user and starts the
+regulatory cooling-off window (default 24h, override with
+`KYC_COOLING_OFF_HOURS`). `GET /users/:uid` reports `can_mint` once the window
+has elapsed. Non-`passed` events are acknowledged and ignored.
 
 ## Usage
 

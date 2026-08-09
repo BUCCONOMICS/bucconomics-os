@@ -40,6 +40,7 @@ export async function setupTestDb(): Promise<TestDb> {
   async function reset(): Promise<void> {
     await db.deleteFrom("votes").execute();
     await db.deleteFrom("proposals").execute();
+    await db.deleteFrom("users").execute();
   }
 
   async function teardown(): Promise<void> {

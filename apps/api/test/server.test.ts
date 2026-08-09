@@ -10,7 +10,11 @@ import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import type { FastifyInstance } from "fastify";
 import { Pool, type PoolConfig } from "pg";
-import { migrateToLatest, PostgresProposalStore } from "@repo/db";
+import {
+  migrateToLatest,
+  PostgresProposalStore,
+  PostgresUserStore,
+} from "@repo/db";
 import { createServer } from "../src/server.js";
 
 jest.setTimeout(120_000);
@@ -40,6 +44,7 @@ describe("proposal/vote API", () => {
     pool = new Pool(poolConfig);
     app = await createServer({
       store: PostgresProposalStore.fromPool(pool),
+      userStore: PostgresUserStore.fromPool(pool),
     });
   });
 
@@ -52,6 +57,7 @@ describe("proposal/vote API", () => {
   beforeEach(async () => {
     await pool.query("DELETE FROM votes");
     await pool.query("DELETE FROM proposals");
+    await pool.query("DELETE FROM users");
   });
 
   const buccId = "11111111-1111-1111-1111-111111111111";
@@ -230,6 +236,147 @@ describe("proposal/vote API", () => {
         vote_weight: "not-a-number",
         origin_bucc_id: buccId,
       },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+});
+
+describe("KYC webhook and cooling-off", () => {
+  let container: StartedPostgreSqlContainer;
+  let pool: Pool;
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    container = await new PostgreSqlContainer("postgres:16-alpine")
+      .withDatabase("test")
+      .withUsername("test")
+      .withPassword("test")
+      .start();
+
+    const poolConfig: PoolConfig = {
+      host: container.getHost(),
+      port: container.getPort(),
+      database: container.getDatabase(),
+      user: container.getUsername(),
+      password: container.getPassword(),
+    };
+
+    await migrateToLatest(poolConfig);
+
+    pool = new Pool(poolConfig);
+    app = await createServer({
+      store: PostgresProposalStore.fromPool(pool),
+      userStore: PostgresUserStore.fromPool(pool),
+    });
+  });
+
+  afterAll(async () => {
+    await app.close();
+    await pool.end();
+    await container.stop();
+  });
+
+  beforeEach(async () => {
+    await pool.query("DELETE FROM users");
+  });
+
+  const uid = "uid-investor";
+
+  it("starts the cooling-off period on a KYC_PASSED webhook", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/kyc",
+      payload: {
+        user_uid: uid,
+        status: "passed",
+        risk_band: "MEDIUM",
+      },
+    });
+
+    expect(response.statusCode).toBe(202);
+    const body = response.json();
+    expect(body.status).toBe("accepted");
+    expect(body.user_uid).toBe(uid);
+    expect(new Date(body.cooling_off_ends_at).getTime()).toBeGreaterThan(
+      Date.now(),
+    );
+  });
+
+  it("surfaces the cooling-off window on GET /users/:uid", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/webhooks/kyc",
+      payload: { user_uid: uid, status: "passed", risk_band: "LOW" },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/users/${uid}`,
+    });
+    expect(response.statusCode).toBe(200);
+    const user = response.json();
+    expect(user.kyc_status).toBe("passed");
+    expect(user.risk_band).toBe("LOW");
+    expect(user.cooling_off_ends_at).not.toBeNull();
+    expect(user.cooling_off_complete).toBe(false);
+    expect(user.can_mint).toBe(false);
+  });
+
+  it("allows minting once the cooling-off period has elapsed", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/webhooks/kyc",
+      payload: { user_uid: uid, status: "passed" },
+    });
+
+    // Fast-forward past the 24h window.
+    const { rowCount } = await pool.query(
+      `UPDATE users SET cooling_off_ends_at = NOW() - INTERVAL '1 minute' WHERE user_uid = $1`,
+      [uid],
+    );
+    expect(rowCount).toBe(1);
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/users/${uid}`,
+    });
+    const user = response.json();
+    expect(user.cooling_off_complete).toBe(true);
+    expect(user.can_mint).toBe(true);
+  });
+
+  it("defaults risk band to PENDING when not supplied", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/webhooks/kyc",
+      payload: { user_uid: uid, status: "passed" },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/users/${uid}`,
+    });
+    expect(response.json().risk_band).toBe("PENDING");
+  });
+
+  it("ignores non-passed events", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/kyc",
+      payload: { user_uid: uid, status: "failed" },
+    });
+    expect(response.statusCode).toBe(202);
+    expect(response.json().status).toBe("ignored");
+
+    const user = await app.inject({ method: "GET", url: `/users/${uid}` });
+    expect(user.statusCode).toBe(404);
+  });
+
+  it("rejects a malformed webhook with 400", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/kyc",
+      payload: { user_uid: "", status: "passed" },
     });
     expect(response.statusCode).toBe(400);
   });

@@ -9,7 +9,7 @@
     },
     "lint": {
       "dependsOn": ["^lint"],
-      "env": ["DATABASE_URL", "PORT"]
+      "env": ["DATABASE_URL", "PORT", "KYC_COOLING_OFF_HOURS"]
     },
     "check-types": {
       "dependsOn": ["^check-types"]

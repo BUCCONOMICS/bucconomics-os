@@ -5,9 +5,10 @@ PostgreSQL schema, migrations, validation, and repository implementation for BUC
 ## What's inside
 
 - **Migrations:** Kysely `Migrator` + `FileMigrationProvider` running TypeScript migration files under `src/migrations/`.
-- **Schema:** Kysely `Database` type for the `proposals` and `votes` tables.
+- **Schema:** Kysely `Database` type for the `proposals`, `votes` and `users` tables.
 - **Validation:** Zod-based validators for creating proposals and votes, including the anti-self-dealing rule for sponsorship proposals.
-- **Repository:** `PostgresProposalStore` implementing `IProposalStore` from `@repo/interfaces`.
+- **Repository:** `PostgresProposalStore` implementing `IProposalStore` and
+  `PostgresUserStore` implementing `IUserStore`, both from `@repo/interfaces`.
 
 ## Running tests
 
