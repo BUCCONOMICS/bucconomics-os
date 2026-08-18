@@ -61,6 +61,7 @@ export interface BuccNetworkOutputs {
   readonly networkRef: BuccOpaqueReference;
   readonly privateSubnetRefs: pulumi.Output<readonly string[]>;
   readonly apiSecurityGroupRef: BuccOpaqueReference;
+  readonly databaseSecurityGroupRef: BuccOpaqueReference;
 }
 
 export interface BuccKeyringOutputs {
@@ -129,6 +130,7 @@ export abstract class BuccNetwork
   abstract readonly networkRef: BuccOpaqueReference;
   abstract readonly privateSubnetRefs: pulumi.Output<readonly string[]>;
   abstract readonly apiSecurityGroupRef: BuccOpaqueReference;
+  abstract readonly databaseSecurityGroupRef: BuccOpaqueReference;
 
   protected constructor(
     name: string,
@@ -263,6 +265,11 @@ export interface BuccImplementationSet {
     BuccMonitoring
   >;
 }
+
+export type BuccFoundationImplementationSet = Pick<
+  BuccImplementationSet,
+  "stateBackend" | "network" | "keyring" | "storage" | "database"
+>;
 
 export interface BuccStackResources {
   readonly stateBackend: BuccStateBackend;

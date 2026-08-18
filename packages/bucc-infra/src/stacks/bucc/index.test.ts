@@ -71,6 +71,7 @@ class TestNetwork extends BuccNetwork {
   readonly networkRef: pulumi.Output<string>;
   readonly privateSubnetRefs: pulumi.Output<readonly string[]>;
   readonly apiSecurityGroupRef: pulumi.Output<string>;
+  readonly databaseSecurityGroupRef: pulumi.Output<string>;
 
   constructor(name: string, inputs: BuccNetworkInputs) {
     super(name, inputs);
@@ -78,6 +79,7 @@ class TestNetwork extends BuccNetwork {
     this.networkRef = child.reference;
     this.privateSubnetRefs = pulumi.output(["subnet-private"]);
     this.apiSecurityGroupRef = pulumi.output("security-group-api");
+    this.databaseSecurityGroupRef = pulumi.output("security-group-db");
     this.registerOutputs(this);
   }
 }
