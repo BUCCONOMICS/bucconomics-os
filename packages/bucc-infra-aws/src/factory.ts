@@ -7,7 +7,7 @@ import {
 import { AwsBuccDatabase } from "./database.js";
 import { AwsBuccKeyring } from "./keyring.js";
 import { AwsBuccNetwork } from "./network.js";
-import { getProvider } from "./provider.js";
+import { createProvider } from "./provider.js";
 import { mergeProvider } from "./shared.js";
 import { AwsBuccStateBackend } from "./state-backend.js";
 import { AwsBuccStorage } from "./storage.js";
@@ -20,10 +20,10 @@ export function createAwsFoundationImplementations({
   config: input,
 }: AwsFoundationInputs): BuccFoundationImplementationSet {
   const config = parseAwsFoundationConfig(input);
+  const provider = createProvider(config.region, config.expectedAccountId);
   const componentOptions = (
     opts: Parameters<BuccFoundationImplementationSet["network"]>[2],
-  ) =>
-    mergeProvider(getProvider(config.region, config.expectedAccountId), opts);
+  ) => mergeProvider(provider, opts);
 
   return {
     stateBackend: (name, inputs, opts) =>

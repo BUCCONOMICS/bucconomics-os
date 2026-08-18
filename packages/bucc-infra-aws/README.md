@@ -11,7 +11,7 @@ AWS implementation package for BUCC foundational infrastructure.
 ## Account guard and provider strategy
 
 - `AwsFoundationConfig.expectedAccountId` is required and strictly validated as 12 digits.
-- `createAwsFoundationImplementations()` lazily creates and caches an `aws.Provider` per `region:account` pair.
+- `createAwsFoundationImplementations()` creates one account-guarded provider per Pulumi program. Provider resources are never reused across Automation API stack runs.
 - The provider is configured with `allowedAccountIds=[expectedAccountId]`.
 - Provider is merged into child opts; caller-provided opts are preserved.
 
