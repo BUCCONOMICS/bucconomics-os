@@ -1,0 +1,40 @@
+{
+  "name": "@repo/bucc-infra-aws",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config/index.ts",
+    "./factory": "./src/factory.ts",
+    "./migrations": "./src/migrations/index.ts"
+  },
+  "scripts": {
+    "build": "npm run build:migrations && tsc --noEmit",
+    "build:migrations": "esbuild src/migrations/handler.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/migrations/index.mjs",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "npm run build:migrations && NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "3.1112.0",
+    "@pulumi/aws": "7.42.0",
+    "@pulumi/pulumi": "3.258.0",
+    "@pulumi/random": "4.21.1",
+    "@repo/bucc-infra": "*",
+    "@repo/db": "*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.15.3",
+    "eslint": "^9.39.1",
+    "esbuild": "^0.28.2",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.4.12",
+    "typescript": "5.9.2"
+  }
+}

@@ -1,16 +1,31 @@
 import {
-  FileMigrationProvider,
   Kysely,
   Migrator,
   PostgresDialect,
+  type Migration,
+  type MigrationProvider,
 } from "kysely";
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Pool, type PoolConfig } from "pg";
 import type { Database } from "../schema/database.js";
+import * as migration20260416000000CreateProposals from "./20260416000000_create_proposals.js";
+import * as migration20260416100000CreateVotes from "./20260416100000_create_votes.js";
+import * as migration20260417000000CreateUsers from "./20260417000000_create_users.js";
+import * as migration20260418000000AddUidMint from "./20260418000000_add_uid_mint.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const migrations: Readonly<Record<string, Migration>> = {
+  "20260416000000_create_proposals": migration20260416000000CreateProposals,
+  "20260416100000_create_votes": migration20260416100000CreateVotes,
+  "20260417000000_create_users": migration20260417000000CreateUsers,
+  "20260418000000_add_uid_mint": migration20260418000000AddUidMint,
+};
+
+export function createMigrationProvider(): MigrationProvider {
+  return {
+    async getMigrations() {
+      return migrations;
+    },
+  };
+}
 
 async function runMigrations(
   poolConfig: PoolConfig,
@@ -23,11 +38,7 @@ async function runMigrations(
 
   const migrator = new Migrator({
     db,
-    provider: new FileMigrationProvider({
-      fs,
-      path,
-      migrationFolder: __dirname,
-    }),
+    provider: createMigrationProvider(),
   });
 
   const { error, results } =
