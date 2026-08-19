@@ -1,7 +1,9 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import type { IWalletProvider } from "@repo/interfaces";
 import { ProposalDetail } from "./ProposalDetail";
+import { WalletProvider } from "../wallet/WalletProvider";
 import {
   castVote,
   getProposal,
@@ -23,21 +25,18 @@ jest.mock("../../lib/api", () => ({
 
 const mockConnected: { current: string | null } = { current: null };
 
-jest.mock("@repo/wallet", () => ({
-  MockWalletProvider: class {
-    getAddress() {
-      return mockConnected.current;
-    }
-    async connect() {
-      const address = "0xabc123";
-      mockConnected.current = address;
-      return {
-        address,
-        handle: { mock: true, createdAt: new Date().toISOString() },
-      };
-    }
+const walletProvider: IWalletProvider = {
+  getAddress: () => mockConnected.current as `0x${string}` | null,
+  isConnected: () => mockConnected.current !== null,
+  async connect() {
+    const address = "0xabc123" as const;
+    mockConnected.current = address;
+    return { address, handle: { mock: true } };
   },
-}));
+  async disconnect() {
+    mockConnected.current = null;
+  },
+};
 
 const mockedGetProposal = getProposal as jest.MockedFunction<
   typeof getProposal
@@ -90,6 +89,14 @@ function mockLoaded(credits: VoterCredits | null = freshCredits) {
   }
 }
 
+function renderProposal() {
+  return render(
+    <WalletProvider provider={walletProvider}>
+      <ProposalDetail proposalId="p1" />
+    </WalletProvider>,
+  );
+}
+
 describe("ProposalDetail", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -99,7 +106,7 @@ describe("ProposalDetail", () => {
   it("renders the proposal, tally and a connect prompt", async () => {
     mockLoaded();
 
-    render(<ProposalDetail proposalId="p1" />);
+    renderProposal();
 
     expect(
       await screen.findByRole("heading", { name: /Solar for the market/i }),
@@ -115,7 +122,7 @@ describe("ProposalDetail", () => {
   it("loads the voter budget on connect", async () => {
     mockLoaded();
 
-    render(<ProposalDetail proposalId="p1" />);
+    renderProposal();
     fireEvent.click(
       await screen.findByRole("button", { name: /Connect wallet/i }),
     );
@@ -138,7 +145,7 @@ describe("ProposalDetail", () => {
     mockConnected.current = "0xabc123";
     mockLoaded();
 
-    render(<ProposalDetail proposalId="p1" />);
+    renderProposal();
 
     const input = await screen.findByLabelText(/Vote weight/i);
     fireEvent.change(input, { target: { value: "3" } });
@@ -158,7 +165,7 @@ describe("ProposalDetail", () => {
     mockConnected.current = "0xabc123";
     mockLoaded();
 
-    render(<ProposalDetail proposalId="p1" />);
+    renderProposal();
 
     const input = await screen.findByLabelText(/Vote weight/i);
     fireEvent.change(input, { target: { value: "3" } });
@@ -181,7 +188,7 @@ describe("ProposalDetail", () => {
       new Error("API request to /votes failed with status 400"),
     );
 
-    render(<ProposalDetail proposalId="p1" />);
+    renderProposal();
 
     const input = await screen.findByLabelText(/Vote weight/i);
     fireEvent.change(input, { target: { value: "2" } });
@@ -194,7 +201,7 @@ describe("ProposalDetail", () => {
     mockConnected.current = "0xabc123";
     mockLoaded({ ...freshCredits, remaining: 0 });
 
-    render(<ProposalDetail proposalId="p1" />);
+    renderProposal();
 
     expect(
       await screen.findByText(/spent your entire voting budget/i),
