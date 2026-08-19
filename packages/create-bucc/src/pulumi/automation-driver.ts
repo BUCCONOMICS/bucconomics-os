@@ -19,14 +19,14 @@ export function createAutomationDriver(): AutomationDriver {
         inlineArgs(input, createBootstrapProgram(input.config)),
         workspaceOptions(input, backendUrl),
       );
-      return runUp(stack);
+      return runUp(stack, input.onUpdateStart);
     },
     async upFoundation(input) {
       const stack = await LocalWorkspace.selectStack(
         inlineArgs(input, createFoundationProgram(input.config)),
         workspaceOptions(input, input.backendUrl),
       );
-      return runUp(stack);
+      return runUp(stack, input.onUpdateStart);
     },
   };
 }
@@ -60,7 +60,11 @@ function workspaceOptions(
   };
 }
 
-async function runUp(stack: Stack): Promise<Record<string, unknown>> {
+async function runUp(
+  stack: Stack,
+  onUpdateStart: () => void,
+): Promise<Record<string, unknown>> {
+  onUpdateStart();
   const result = await stack.up({
     color: "never",
     suppressOutputs: true,

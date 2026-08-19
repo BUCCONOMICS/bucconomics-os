@@ -16,6 +16,7 @@ export async function assembleConfigs(input: {
   readonly secrets: ProviderSecretStore;
 }): Promise<AssembledInstallerConfig> {
   const name = normalizeName(input.answers.name);
+  validateBeforeSecretWrites(input.answers, input.identity, name);
   const createdSecretRefs: string[] = [];
   try {
     const kycProvider = await storeProvider(
@@ -69,6 +70,53 @@ export async function assembleConfigs(input: {
     );
     throw error;
   }
+}
+
+function validateBeforeSecretWrites(
+  answers: WizardAnswers,
+  identity: AwsIdentity,
+  name: string,
+): void {
+  const placeholderSecretRef = "pending-secret-write";
+  parseBuccConfig({
+    name,
+    region: answers.region,
+    contactEmail: answers.contactEmail,
+    mode: answers.mode,
+    kycProvider:
+      answers.kycProvider.mode === "sandbox"
+        ? answers.kycProvider
+        : {
+            provider: answers.kycProvider.provider,
+            mode: "credentials",
+            credentialSecretRef: placeholderSecretRef,
+          },
+    financialProvider:
+      answers.financialProvider.mode === "sandbox"
+        ? answers.financialProvider
+        : {
+            provider: answers.financialProvider.provider,
+            mode: "credentials",
+            credentialSecretRef: placeholderSecretRef,
+          },
+    rpc:
+      answers.rpc.mode === "public"
+        ? answers.rpc
+        : {
+            mode: "credentials",
+            provider: answers.rpc.provider,
+            credentialSecretRef: placeholderSecretRef,
+          },
+    reviewCadenceHours: answers.reviewCadenceHours,
+    budgetThreshold: answers.budgetThreshold,
+  });
+  parseAwsFoundationConfig({
+    name,
+    region: answers.region,
+    expectedAccountId: identity.accountId,
+    vpcCidr: "10.20.0.0/16",
+    mode: answers.mode,
+  });
 }
 
 export function normalizeName(value: string): string {

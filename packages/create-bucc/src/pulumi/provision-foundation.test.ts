@@ -120,6 +120,111 @@ describe("foundation provisioner", () => {
     );
     expect(cleaned).toBe(false);
   });
+
+  it("retains encrypted recovery state when the bootstrap outcome is uncertain", async () => {
+    let cleaned = false;
+    const provisioner = createFoundationProvisioner({
+      automation: {
+        upBootstrap: async (input) => {
+          input.onUpdateStart();
+          throw new Error("update failed after creating resources");
+        },
+        upFoundation: async () => ({}),
+      },
+      migration: {
+        migrate: async () => {},
+        rotatePassphrase: async () => {},
+      },
+      secretReader: { readPassphrase: async () => "permanent" },
+      workspaces: {
+        async create() {
+          return {
+            path: "/tmp/bootstrap-recovery",
+            localStatePath: "/tmp/bootstrap-recovery/state",
+            cleanup: async () => {
+              cleaned = true;
+            },
+          };
+        },
+      },
+    });
+
+    await expect(provisioner.provision({ config, command })).rejects.toThrow(
+      "/tmp/bootstrap-recovery",
+    );
+    expect(cleaned).toBe(false);
+  });
+
+  it("cleans up when bootstrap setup fails before an update starts", async () => {
+    let cleaned = false;
+    const provisioner = createFoundationProvisioner({
+      automation: {
+        upBootstrap: async () => {
+          throw new Error("workspace setup failed");
+        },
+        upFoundation: async () => ({}),
+      },
+      migration: {
+        migrate: async () => {},
+        rotatePassphrase: async () => {},
+      },
+      secretReader: { readPassphrase: async () => "permanent" },
+      workspaces: {
+        async create() {
+          return {
+            path: "/tmp/setup-failure",
+            localStatePath: "/tmp/setup-failure/state",
+            cleanup: async () => {
+              cleaned = true;
+            },
+          };
+        },
+      },
+    });
+
+    await expect(provisioner.provision({ config, command })).rejects.toThrow(
+      "before update",
+    );
+    expect(cleaned).toBe(true);
+  });
+
+  it("retains state when the backend passphrase cannot be read", async () => {
+    let cleaned = false;
+    const provisioner = createFoundationProvisioner({
+      automation: {
+        upBootstrap: async () => ({
+          backendRef: "s3://operator-state",
+          passphraseSecretRef: "arn:aws:secretsmanager:passphrase",
+        }),
+        upFoundation: async () => ({}),
+      },
+      migration: {
+        migrate: async () => {},
+        rotatePassphrase: async () => {},
+      },
+      secretReader: {
+        readPassphrase: async () => {
+          throw new Error("secret unavailable");
+        },
+      },
+      workspaces: {
+        async create() {
+          return {
+            path: "/tmp/passphrase-recovery",
+            localStatePath: "/tmp/passphrase-recovery/state",
+            cleanup: async () => {
+              cleaned = true;
+            },
+          };
+        },
+      },
+    });
+
+    await expect(provisioner.provision({ config, command })).rejects.toThrow(
+      "/tmp/passphrase-recovery",
+    );
+    expect(cleaned).toBe(false);
+  });
 });
 
 describe("Pulumi migration driver", () => {

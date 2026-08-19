@@ -15,6 +15,7 @@ export interface AutomationUpInput {
   readonly workDir: string;
   readonly passphrase: string;
   readonly command: PulumiCommand;
+  readonly onUpdateStart: () => void;
 }
 
 export interface MigrationDriver {

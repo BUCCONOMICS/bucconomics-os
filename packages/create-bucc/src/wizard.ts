@@ -42,13 +42,14 @@ export async function runWizard(prompt: PromptPort): Promise<WizardAnswers> {
   ) {
     throw new Error("Live installation cancelled");
   }
-  const kycProvider = await collectProvider(prompt, "KYC", "mock-kyc");
+  const kycProvider = await collectProvider(prompt, "KYC", "mock-kyc", mode);
   const financialProvider = await collectProvider(
     prompt,
     "financial",
     "mock-fiat",
+    mode,
   );
-  const rpc = await collectRpc(prompt);
+  const rpc = await collectRpc(prompt, mode);
   const reviewCadenceHours = parsePositiveNumber(
     await prompt.input({
       message: "How many hours between activity reviews?",
@@ -81,36 +82,52 @@ async function collectProvider(
   prompt: PromptPort,
   label: string,
   practiceProvider: string,
+  installationMode: WizardAnswers["mode"],
 ): Promise<ProviderAnswer> {
-  const provider = await prompt.input({
-    message: `Which ${label} provider will you use?`,
-    initial: practiceProvider,
-  });
-  const mode = await prompt.select({
-    message: `Use the ${label} sandbox or provider credentials?`,
-    choices: [
-      { value: "sandbox", label: "Sandbox" },
-      { value: "credentials", label: "Provider credentials" },
-    ],
-  });
+  const provider = requireValue(
+    await prompt.input({
+      message: `Which ${label} provider will you use?`,
+      initial: installationMode === "practice" ? practiceProvider : undefined,
+    }),
+    `${label} provider`,
+  );
+  const mode =
+    installationMode === "live"
+      ? "credentials"
+      : await prompt.select({
+          message: `Use the ${label} sandbox or provider credentials?`,
+          choices: [
+            { value: "sandbox", label: "Sandbox" },
+            { value: "credentials", label: "Provider credentials" },
+          ],
+        });
   if (mode === "sandbox") {
     return { provider, mode };
   }
-  const credential = await prompt.password({
-    message: `Enter the ${label} provider credential`,
-    mask: "*",
-  });
+  const credential = requireValue(
+    await prompt.password({
+      message: `Enter the ${label} provider credential`,
+      mask: "*",
+    }),
+    `${label} provider credential`,
+  );
   return { provider, mode, credential };
 }
 
-async function collectRpc(prompt: PromptPort): Promise<RpcAnswer> {
-  const mode = await prompt.select({
-    message: "Use the public Base Sepolia RPC or a provider credential?",
-    choices: [
-      { value: "public", label: "Public Base Sepolia RPC" },
-      { value: "credentials", label: "RPC provider credential" },
-    ],
-  });
+async function collectRpc(
+  prompt: PromptPort,
+  installationMode: WizardAnswers["mode"],
+): Promise<RpcAnswer> {
+  const mode =
+    installationMode === "live"
+      ? "credentials"
+      : await prompt.select({
+          message: "Use the public Base Sepolia RPC or a provider credential?",
+          choices: [
+            { value: "public", label: "Public Base Sepolia RPC" },
+            { value: "credentials", label: "RPC provider credential" },
+          ],
+        });
   if (mode === "public") {
     return {
       mode,
@@ -120,12 +137,24 @@ async function collectRpc(prompt: PromptPort): Promise<RpcAnswer> {
       }),
     };
   }
-  const provider = await prompt.input({ message: "RPC provider name" });
-  const credential = await prompt.password({
-    message: "Enter the RPC provider credential",
-    mask: "*",
-  });
+  const provider = requireValue(
+    await prompt.input({ message: "RPC provider name" }),
+    "RPC provider",
+  );
+  const credential = requireValue(
+    await prompt.password({
+      message: "Enter the RPC provider credential",
+      mask: "*",
+    }),
+    "RPC provider credential",
+  );
   return { mode, provider, credential };
+}
+
+function requireValue(value: string, field: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) throw new Error(`${field} is required`);
+  return trimmed;
 }
 
 function parsePositiveNumber(value: string, field: string): number {

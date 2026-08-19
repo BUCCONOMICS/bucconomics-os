@@ -18,6 +18,7 @@ executable.
 
 1. Run the installer in AWS CloudShell using its ambient AWS identity.
 2. Answer one business question per screen. Secret answers are masked.
+   Live mode requires provider and RPC credentials and never defaults to Base Sepolia.
 3. Verify the displayed AWS account, region, and practice/live mode.
 4. Only after confirmation, provider credentials are sent directly to Secrets Manager.
 5. A temporary encrypted file backend creates the operator-owned S3 state backend.
@@ -38,8 +39,8 @@ CloudShell integration smoke test before general release.
 
 Temporary state is encrypted and stored in a mode-0700 directory. It is removed
 only after migration, passphrase rotation, and the S3-backed foundation apply
-all succeed. If migration has started and the outcome is uncertain, the
-encrypted recovery directory is retained and only its path is reported.
+all succeed. Once a bootstrap update is attempted, an uncertain outcome retains
+the encrypted recovery directory and reports only its path.
 
 ## Notes
 

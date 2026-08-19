@@ -33,6 +33,8 @@ describe("wizard", () => {
       mode: "credentials",
       credential: "kyc-secret",
     });
+    expect(answers.financialProvider.mode).toBe("credentials");
+    expect(answers.rpc.mode).toBe("credentials");
     expect(prompt.passwordRequests).toHaveLength(3);
     expect(prompt.passwordRequests.every(({ mask }) => mask === "*")).toBe(
       true,
@@ -181,6 +183,51 @@ describe("config assembly", () => {
       }),
     ).rejects.toThrow("redacted write failure");
     expect(deleted).toEqual(["arn:created:kyc"]);
+  });
+
+  it("validates non-secret configuration before writing credentials", async () => {
+    let writes = 0;
+    const secrets: ProviderSecretStore = {
+      async writeSecret() {
+        writes += 1;
+        return "arn:created:secret";
+      },
+      deleteSecret: async () => {},
+    };
+
+    await expect(
+      assembleConfigs({
+        identity: {
+          accountId: "123456789012",
+          arn: "arn:aws:sts::123456789012:assumed-role/operator/session",
+        },
+        secrets,
+        answers: {
+          name: "Harbour",
+          region: "eu-west-2",
+          contactEmail: "not-an-email",
+          mode: "live",
+          kycProvider: {
+            provider: "kyc",
+            mode: "credentials",
+            credential: "kyc-secret",
+          },
+          financialProvider: {
+            provider: "fiat",
+            mode: "credentials",
+            credential: "fiat-secret",
+          },
+          rpc: {
+            provider: "rpc",
+            mode: "credentials",
+            credential: "rpc-secret",
+          },
+          reviewCadenceHours: 168,
+          budgetThreshold: 100,
+        },
+      }),
+    ).rejects.toThrow();
+    expect(writes).toBe(0);
   });
 });
 

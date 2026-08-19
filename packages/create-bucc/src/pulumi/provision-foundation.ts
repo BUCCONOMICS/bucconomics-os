@@ -34,7 +34,7 @@ export function createFoundationProvisioner(dependencies: {
       const stackName = `${config.name}-foundation`;
       const projectName = `${config.name}-bucc`;
       const localBackendUrl = pathToFileURL(workspace.localStatePath).href;
-      let migrationStarted = false;
+      let updateAttempted = false;
 
       try {
         const bootstrap = bootstrapOutputsSchema.parse(
@@ -45,15 +45,18 @@ export function createFoundationProvisioner(dependencies: {
             workDir: workspace.path,
             passphrase: temporaryPassphrase,
             command,
+            onUpdateStart: () => {
+              updateAttempted = true;
+            },
           }),
         );
+        updateAttempted = true;
         const permanentPassphrase =
           await dependencies.secretReader.readPassphrase({
             arn: bootstrap.passphraseSecretRef,
             region: config.region,
           });
 
-        migrationStarted = true;
         await dependencies.migration.migrate({
           command: command.command,
           cwd: workspace.path,
@@ -79,6 +82,9 @@ export function createFoundationProvisioner(dependencies: {
             passphrase: permanentPassphrase,
             command,
             backendUrl: bootstrap.backendRef,
+            onUpdateStart: () => {
+              updateAttempted = true;
+            },
           }),
         );
         await workspace.cleanup();
@@ -91,11 +97,9 @@ export function createFoundationProvisioner(dependencies: {
           exportsStorageRef: foundation.exportsStorageRef,
         };
       } catch {
-        if (!migrationStarted) {
+        if (!updateAttempted) {
           await workspace.cleanup();
-          throw new Error(
-            "Foundation provisioning failed before state migration",
-          );
+          throw new Error("Foundation provisioning failed before update");
         }
         throw new Error(
           `Foundation provisioning needs recovery. Encrypted recovery state remains at ${workspace.path}`,
