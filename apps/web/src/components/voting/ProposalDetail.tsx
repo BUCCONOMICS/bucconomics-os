@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { MockWalletProvider } from "@repo/wallet";
+import { useCallback, useEffect, useState } from "react";
+import { ConnectWalletButton } from "../wallet/ConnectWalletButton";
+import { useSmartAccount } from "../../store/walletStore";
 import {
   castVote,
   getProposal,
@@ -16,23 +17,16 @@ import {
 } from "../../lib/api";
 
 export function ProposalDetail({ proposalId }: { proposalId: string }) {
-  const walletRef = useRef<MockWalletProvider>(new MockWalletProvider());
+  const { address } = useSmartAccount();
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [missing, setMissing] = useState(false);
   const [tally, setTally] = useState<ProposalTally | null>(null);
   const [votes, setVotes] = useState<Vote[]>([]);
   const [credits, setCredits] = useState<VoterCredits | null>(null);
-  const [address, setAddress] = useState<string | null>(() =>
-    walletRef.current.getAddress(),
-  );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [weight, setWeight] = useState("");
   const [voting, setVoting] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
-
-  const loadCredits = useCallback(async (voterUid: string) => {
-    setCredits(await getVoterCredits(voterUid));
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,10 +46,6 @@ export function ProposalDetail({ proposalId }: { proposalId: string }) {
         if (cancelled) return;
         setTally(nextTally);
         setVotes(nextVotes);
-        const voter = walletRef.current.getAddress();
-        if (voter) {
-          setCredits(await getVoterCredits(voter));
-        }
       } catch (error) {
         if (!cancelled) {
           setLoadError(
@@ -69,11 +59,29 @@ export function ProposalDetail({ proposalId }: { proposalId: string }) {
     };
   }, [proposalId]);
 
-  const handleConnect = useCallback(async () => {
-    const account = await walletRef.current.connect();
-    setAddress(account.address);
-    await loadCredits(account.address);
-  }, [loadCredits]);
+  useEffect(() => {
+    if (!address) {
+      setCredits(null);
+      return;
+    }
+    let cancelled = false;
+    void getVoterCredits(address)
+      .then((nextCredits) => {
+        if (!cancelled) setCredits(nextCredits);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load voter credits",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [address]);
 
   const handleVote = useCallback(async () => {
     if (!proposal || !address || voting) return;
@@ -236,12 +244,7 @@ export function ProposalDetail({ proposalId }: { proposalId: string }) {
                 <p className="text-gray-600 mb-4">
                   Connect a wallet to vote with your quadratic credit budget.
                 </p>
-                <button
-                  onClick={() => void handleConnect()}
-                  className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
-                >
-                  Connect wallet
-                </button>
+                <ConnectWalletButton />
               </div>
             ) : (
               <div>

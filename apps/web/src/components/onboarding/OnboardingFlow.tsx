@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { SmartAccount } from "@repo/interfaces";
-import { MockWalletProvider } from "@repo/wallet";
+import { useCallback, useEffect, useState } from "react";
 
 import { SuitabilityQuiz, type Answers } from "../compliance/SuitabilityQuiz";
 import { computeRiskBand } from "../../lib/onboarding";
+import { useSmartAccount } from "../../store/walletStore";
 import {
   getUserStatus,
   mintUid,
@@ -19,8 +18,8 @@ const POLL_INTERVAL_MS = 10_000;
 
 export function OnboardingFlow() {
   const [step, setStep] = useState<Step>("quiz");
+  const { address, connect } = useSmartAccount();
   const [answers, setAnswers] = useState<Answers | null>(null);
-  const [account, setAccount] = useState<SmartAccount | null>(null);
   const [uidTokenId, setUidTokenId] = useState<bigint | null>(null);
   const [seniorAmount, setSeniorAmount] = useState("");
   const [juniorAmount, setJuniorAmount] = useState("");
@@ -30,7 +29,6 @@ export function OnboardingFlow() {
   const [mintError, setMintError] = useState<string | null>(null);
   const [minting, setMinting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const walletRef = useRef<MockWalletProvider>(new MockWalletProvider());
 
   const riskBand = answers ? computeRiskBand(answers) : null;
   const canMint = Boolean(userStatus?.can_mint);
@@ -41,18 +39,22 @@ export function OnboardingFlow() {
   }, []);
 
   const syncKyc = useCallback(
-    async (address: string) => {
+    async (address: string, isCancelled: () => boolean = () => false) => {
       setKycError(null);
       try {
         let status = await getUserStatus(address);
+        if (isCancelled()) return;
         if (!status) {
           setKycRecording(true);
           await recordKyc(address, riskBand ?? "MEDIUM");
+          if (isCancelled()) return;
           setKycRecording(false);
           status = await getUserStatus(address);
+          if (isCancelled()) return;
         }
         setUserStatus(status);
       } catch (error) {
+        if (isCancelled()) return;
         setKycRecording(false);
         setKycError(
           error instanceof Error ? error.message : "Failed to sync KYC",
@@ -63,15 +65,21 @@ export function OnboardingFlow() {
   );
 
   useEffect(() => {
-    if (step !== "uid" || !account) return;
-    void syncKyc(account.address);
+    if (step !== "uid" || !address) return;
+    let cancelled = false;
+    void syncKyc(address, () => cancelled);
     const interval = setInterval(() => {
-      void getUserStatus(account.address)
-        .then(setUserStatus)
+      void getUserStatus(address)
+        .then((status) => {
+          if (!cancelled) setUserStatus(status);
+        })
         .catch(() => {});
     }, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [step, account, syncKyc]);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [step, address, syncKyc]);
 
   useEffect(() => {
     if (step !== "uid" || !userStatus || userStatus.can_mint) return;
@@ -80,17 +88,16 @@ export function OnboardingFlow() {
   }, [step, userStatus]);
 
   const handleConnect = useCallback(async () => {
-    const connected = await walletRef.current.connect();
-    setAccount(connected);
+    await connect();
     setStep("uid");
-  }, []);
+  }, [connect]);
 
   const handleMintUid = useCallback(async () => {
-    if (!account || minting) return;
+    if (!address || minting) return;
     setMinting(true);
     setMintError(null);
     try {
-      const { uid_token_id } = await mintUid(account.address);
+      const { uid_token_id } = await mintUid(address);
       setUidTokenId(BigInt(uid_token_id));
       setStep("tranche");
     } catch (error) {
@@ -100,7 +107,7 @@ export function OnboardingFlow() {
     } finally {
       setMinting(false);
     }
-  }, [account, minting]);
+  }, [address, minting]);
 
   const handleDeposit = useCallback(() => {
     setStep("done");
@@ -109,7 +116,6 @@ export function OnboardingFlow() {
   const reset = useCallback(() => {
     setStep("quiz");
     setAnswers(null);
-    setAccount(null);
     setUidTokenId(null);
     setSeniorAmount("");
     setJuniorAmount("");
@@ -139,7 +145,7 @@ export function OnboardingFlow() {
         <h2 className="text-2xl font-bold mb-2">Minting your identity</h2>
         <p className="text-gray-600 mb-4">
           Your verified status is minted as a soul-bound BUCC_UID token to your
-          account <code className="text-sm">{account?.address}</code>
+          account <code className="text-sm">{address}</code>
         </p>
         {kycError && (
           <div
@@ -147,7 +153,7 @@ export function OnboardingFlow() {
             className="mb-4 p-3 bg-red-50 text-red-800 rounded-lg"
           >
             <p className="mb-2">KYC sync failed: {kycError}</p>
-            <Button onClick={() => account && void syncKyc(account.address)}>
+            <Button onClick={() => address && void syncKyc(address)}>
               Retry
             </Button>
           </div>
@@ -227,7 +233,7 @@ export function OnboardingFlow() {
           <li>
             <strong className="font-semibold text-gray-900">Identity:</strong>{" "}
             BUCC_UID #{uidTokenId?.toString()} on{" "}
-            <code className="text-sm">{account?.address}</code>
+            <code className="text-sm">{address}</code>
           </li>
           <li>
             <strong className="font-semibold text-gray-900">Risk band:</strong>{" "}

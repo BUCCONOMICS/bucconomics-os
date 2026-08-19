@@ -1,7 +1,9 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import type { IWalletProvider } from "@repo/interfaces";
 import { OnboardingFlow } from "./OnboardingFlow";
+import { WalletProvider } from "../wallet/WalletProvider";
 import {
   getUserStatus,
   mintUid,
@@ -15,24 +17,19 @@ jest.mock("../../lib/api", () => ({
   mintUid: jest.fn(),
 }));
 
-jest.mock("@repo/wallet", () => ({
-  MockWalletProvider: class {
-    async connect() {
-      return {
-        address: "0xabc123",
-        handle: { mock: true, createdAt: new Date().toISOString() },
-      };
-    }
-  },
-}));
-
 const mockedGetUserStatus = getUserStatus as jest.MockedFunction<
   typeof getUserStatus
 >;
 const mockedRecordKyc = recordKyc as jest.MockedFunction<typeof recordKyc>;
 const mockedMintUid = mintUid as jest.MockedFunction<typeof mintUid>;
 
-const address = "0xabc123";
+const address = "0xabc123" as const;
+const walletProvider: IWalletProvider = {
+  connect: jest.fn(async () => ({ address, handle: { mock: true } })),
+  disconnect: jest.fn(async () => {}),
+  getAddress: () => null,
+  isConnected: () => false,
+};
 
 const coolingStatus = (overrides: Partial<UserStatus> = {}): UserStatus => ({
   user_uid: address,
@@ -51,7 +48,11 @@ const accepted = () => ({
 });
 
 async function answerQuizAndConnect() {
-  render(<OnboardingFlow />);
+  render(
+    <WalletProvider provider={walletProvider}>
+      <OnboardingFlow />
+    </WalletProvider>,
+  );
   const radios = screen.getAllByRole("radio");
   radios.forEach((radio) => fireEvent.click(radio));
   fireEvent.click(

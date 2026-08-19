@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ConnectWalletButton } from "../src/components/wallet/ConnectWalletButton";
 
 export default function Home() {
   return (
@@ -28,6 +29,9 @@ export default function Home() {
           >
             Vote on proposals
           </Link>
+        </div>
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <ConnectWalletButton />
         </div>
       </div>
     </main>
