@@ -1,6 +1,12 @@
-# Turborepo starter
+# BUCCONOMICS OS
 
-This Turborepo starter is maintained by the Turborepo core team.
+> [!IMPORTANT]
+> Active development moved to a private BUCCONOMICS repository on 23 August
+> 2026. This public repository is retained as a historical source snapshot and
+> is no longer accepting active feature development. This notice does not
+> change the terms under which earlier revisions were published.
+
+The remaining sections describe the historical development environment.
 
 ## Using this example
 
